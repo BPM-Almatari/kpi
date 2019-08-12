@@ -24,4 +24,6 @@ test/compiled/*
 celerybeat-schedule
 deployments.json
 .DS_Store
+cypress/screenshots
+cypress/videos
 jsapp/fonts

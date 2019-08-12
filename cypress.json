@@ -1,0 +1,7 @@
+{
+  "baseUrl": "http://kpi.kobo.local",
+  "video": false,
+  "chromeWebSecurity": false,
+  "fixturesFolder": false,
+  "pluginsFile": false
+}
