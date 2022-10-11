@@ -684,14 +684,20 @@ class DataViewSet(AssetNestedObjectViewsetMixin, NestedViewSetMixin,
         # )
         # version_uid = list(submissions_stream)[0][INFERRED_VERSION_ID_KEY]
 
-        # Let's use the latest version uid temporarily
-        version_uid = self.asset.latest_version.uid
+        # Let's use the latest **deployed** version uid temporarily
+        version_uid = self.asset.latest_deployed_version.uid
 
         # Retrieve the XML root node name from the submission. The instance's
         # root node name specified in the form XML (i.e. the first child of
         # `<instance>`) must match the root node name of the submission XML,
         # otherwise Enketo will refuse to open the submission.
-        xml_root_node_name = ET.fromstring(submission_xml).tag
+        parsed_submission_xml = ET.fromstring(submission_xml)
+        xml_root_node_name = parsed_submission_xml.tag
+
+        # Update the `__version__` value in the submission to match the
+        # version of the form used for editing
+        parsed_submission_xml.find('__version__').text = version_uid
+        submission_xml = ET.tostring(parsed_submission_xml)
 
         # This will raise `AssetVersion.DoesNotExist` if the inferred version
         # of the submission disappears between the call to `build_formpack()`
@@ -749,4 +755,11 @@ class DataViewSet(AssetNestedObjectViewsetMixin, NestedViewSetMixin,
         json_response = response.json()
         enketo_url = json_response.get(f'{action_}_url')
 
-        return Response({'url': enketo_url})
+        response = {
+            'url': enketo_url,
+            'version_uid': version_uid,
+        }
+        if settings.TESTING:
+            response['submission_xml'] = submission_xml
+
+        return Response(response)
