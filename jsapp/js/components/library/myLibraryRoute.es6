@@ -26,6 +26,7 @@ class MyLibraryRoute extends React.Component {
   getFreshState() {
     return {
       isLoading: myLibraryStore.data.isFetchingData,
+      isFullscreen: false,
       assets: myLibraryStore.data.assets,
       metadata: myLibraryStore.data.metadata,
       totalAssets: myLibraryStore.data.totalSearchAssets,
@@ -64,6 +65,11 @@ class MyLibraryRoute extends React.Component {
     myLibraryStore.setCurrentPage(pageNumber);
   }
 
+  toggleFullscreen(evt) {
+    evt.stopPropagation();
+    this.setState({isFullscreen: !this.state.isFullscreen});
+  }
+
   /**
    * If only one file was passed, then open a modal for selecting the type.
    * Otherwise just start uploading all files.
@@ -93,18 +99,34 @@ class MyLibraryRoute extends React.Component {
       );
     }
 
+    // Modifying Dropzone like this feels a bit weird, should we add a wrapper?
+    let modifiers = ['dropzone'];
+    if (this.state.isFullscreen) {
+      modifiers.push('dropzone--fullscreen');
+    }
+    modifiers = modifiers.join(' ');
+
     return (
       <DocumentTitle title={`${t('My Library')} | KoboToolbox`}>
         <Dropzone
           onDrop={this.onFileDrop}
           disableClick
           multiple
-          className='dropzone'
+          className={modifiers}
           activeClassName='dropzone--active'
           accept={validFileTypes()}
         >
           <bem.Breadcrumbs m='gray-wrapper'>
             <bem.Breadcrumbs__crumb>{ROOT_BREADCRUMBS.MY_LIBRARY.label}</bem.Breadcrumbs__crumb>
+            {this.state.assets.length > 0 &&
+              <button
+                classname='mdl-button'
+                onClick={(evt) => {this.toggleFullscreen(evt)}}
+              >
+                {t('Toggle fullscreen')}
+                <i classname='k-icon k-icon-expand' />
+              </button>
+            }
           </bem.Breadcrumbs>
 
           <AssetsTable
