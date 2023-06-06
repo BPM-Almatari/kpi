@@ -119,7 +119,7 @@ export class FormMap extends React.Component {
 
     var map = L.map('data-map', {
       maxZoom: 17,
-      scrollWheelZoom: false,
+      scrollWheelZoom: true,
       preferCanvas: true
     });
 
