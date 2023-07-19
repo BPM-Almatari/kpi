@@ -1,6 +1,7 @@
 import uuid
 from functools import partial
 
+from django.conf import settings
 from django.db import models
 from django.forms.fields import EmailField
 from organizations.abstract import (
@@ -16,6 +17,7 @@ from kpi.fields import KpiUidField
 
 class Organization(AbstractOrganization):
     id = KpiUidField(uid_prefix='org', primary_key=True)
+    is_org_admin = AbstractOrganization.is_admin
 
     @property
     def email(self):
@@ -27,7 +29,26 @@ class Organization(AbstractOrganization):
 
 
 class OrganizationUser(AbstractOrganizationUser):
-    pass
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        null=True,
+        on_delete=models.CASCADE,
+    )
+    email = models.EmailField(
+        blank=True, null=True, help_text='Email for pending invite'
+    )
+
+    def __str__(self):
+        name = str(self.user) if self.user else self.email
+        return f"{name} {self.organization}"
+
+    def is_org_admin(self, user):
+        return self.organization.is_admin(user)
+
+    @property
+    def is_active(self):
+        return self.user_id is not None
 
 
 class OrganizationOwner(AbstractOrganizationOwner):
