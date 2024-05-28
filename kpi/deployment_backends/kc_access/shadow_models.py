@@ -179,7 +179,7 @@ class KobocatAttachment(ShadowModel, AudioTranscodingMixin):
             # (out of ASCII character set) and must be encoded to let NGINX serve
             # them
             protected_url = urlquote(attachment_file_path.replace(
-                settings.KOBOCAT_MEDIA_PATH, '/protected')
+                settings.KOBOCAT_MEDIA_ROOT, '/protected')
             )
         else:
             # Double-encode the S3 URL to take advantage of NGINX's
@@ -478,7 +478,7 @@ class KobocatUser(ShadowModel):
         KobocatDigestPartial.sync(kc_auth_user)
 
     @classmethod
-    def get_kc_user(cls, auth_user: 'auth.User') -> KobocatUser:
+    def get_kc_user(cls, auth_user: settings.AUTH_USER_MODEL) -> KobocatUser:
         try:
             kc_auth_user = cls.objects.get(pk=auth_user.pk)
             assert kc_auth_user.username == auth_user.username
