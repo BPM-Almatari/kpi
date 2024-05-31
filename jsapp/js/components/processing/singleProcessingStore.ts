@@ -12,6 +12,7 @@ import {
   getRowName,
   getRowNameByQpath,
   getFlatQuestionsList,
+  getLanguageIndex,
 } from 'js/assetUtils';
 import type {SurveyFlatPaths} from 'js/assetUtils';
 import assetStore from 'js/assetStore';
@@ -34,6 +35,7 @@ import {
   getCurrentProcessingRouteParts,
   ProcessingTab,
 } from 'js/components/processing/routes.utils';
+import type {KoboSelectOption} from 'js/components/common/koboSelect';
 
 export enum StaticDisplays {
   Data = 'Data',
@@ -125,6 +127,7 @@ interface SingleProcessingStoreData {
   isFetchingData: boolean;
   isPollingForTranscript: boolean;
   hiddenSidebarQuestions: string[];
+  currentlyDisplayedLanguage: LanguageCode | string;
 }
 
 class SingleProcessingStore extends Reflux.Store {
@@ -155,6 +158,7 @@ class SingleProcessingStore extends Reflux.Store {
     isFetchingData: false,
     isPollingForTranscript: false,
     hiddenSidebarQuestions: [],
+    currentlyDisplayedLanguage: this.getInitialDisplayedLanguage(),
   };
 
   /** Clears all data - useful before making initialisation call */
@@ -957,6 +961,40 @@ class SingleProcessingStore extends Reflux.Store {
     );
   }
 
+  getDisplayedLanguagesList(): KoboSelectOption[] {
+    const languagesList = [];
+
+    languagesList.push({label: t('XML names'), value: 'xml_names'});
+    const asset = assetStore.getAsset(this.currentAssetUid);
+    if (asset?.summary?.languages && asset?.summary?.languages.length > 0) {
+      asset.summary.languages.forEach((language) => {
+        if (language !== null) {
+          languagesList.push({
+            label: language,
+            value: language,
+          });
+        }
+      });
+    } else {
+      languagesList.push({label: t('Default'), value: 'default'});
+    }
+
+    return languagesList;
+  }
+
+  getInitialDisplayedLanguage() {
+    const asset = assetStore.getAsset(this.currentAssetUid);
+    if (asset?.summary?.languages && asset?.summary?.languages[0]) {
+      return asset?.summary?.languages[0];
+    } else {
+      return '';
+    }
+  }
+
+  getCurrentlyDisplayedLanguage() {
+    return this.data.currentlyDisplayedLanguage;
+  }
+
   getInitialDisplays(): SidebarDisplays {
     return {
       transcript: DefaultDisplays.get(ProcessingTab.Transcript) || [],
@@ -992,7 +1030,10 @@ class SingleProcessingStore extends Reflux.Store {
     const asset = assetStore.getAsset(this.currentAssetUid);
 
     if (asset?.content?.survey) {
-      const questionsList = getFlatQuestionsList(asset.content.survey, 0)
+      const questionsList = getFlatQuestionsList(
+        asset.content.survey,
+        getLanguageIndex(asset, this.data.currentlyDisplayedLanguage)
+      )
         .filter((question) => !(question.name === this.currentQuestionName))
         .map((question) => {
           // We make an object to show the question label to the user but use the
@@ -1060,6 +1101,12 @@ class SingleProcessingStore extends Reflux.Store {
 
   setHiddenSidebarQuestions(list: string[]) {
     this.data.hiddenSidebarQuestions = list;
+
+    this.trigger(this.data);
+  }
+
+  setCurrentlyDisplayedLanguage(language: LanguageCode) {
+    this.data.currentlyDisplayedLanguage = language;
 
     this.trigger(this.data);
   }
