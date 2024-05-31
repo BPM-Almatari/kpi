@@ -10,7 +10,6 @@ import type {LanguageCode} from 'js/components/languages/languagesStore';
 import type {
   AnyRowTypeName,
   AssetTypeName,
-  ValidationStatus,
   AssetFileType,
 } from 'js/constants';
 import type {PermissionCodename} from 'js/components/permissions/permConstants';
@@ -24,6 +23,8 @@ import type {TransxObject} from './components/processing/processingActions';
 import type {UserResponse} from 'js/users/userExistence.store';
 import type {ReportsResponse} from 'js/components/reports/reportsConstants';
 import type {ProjectTransferAssetDetail} from 'js/components/permissions/transferProjects/transferProjects.api';
+import type {SortValues} from 'js/components/submissions/tableConstants';
+import type {ValidationStatusName} from 'js/components/submissions/validationStatus.constants';
 
 interface AssetsRequestData {
   q?: string;
@@ -60,17 +61,14 @@ export interface SearchAssetsPredefinedParams {
   status?: string;
 }
 
-interface BulkSubmissionsRequest {
-  query: {
+export interface BulkSubmissionsRequest {
+  query?: {
     [id: string]: any;
   };
   confirm?: boolean;
   submission_ids?: string[];
-}
-
-interface BulkSubmissionsValidationStatusRequest
-  extends BulkSubmissionsRequest {
-  'validation_status.uid': ValidationStatus;
+  // Needed for updating validation status
+  'validation_status.uid'?: ValidationStatusName;
 }
 
 interface AssetFileRequest {
@@ -179,7 +177,13 @@ export interface SubmissionResponse {
   _submitted_by: string | null;
   _tags: string[];
   _uuid: string;
-  _validation_status: object;
+  _validation_status: {
+    timestamp?: number;
+    uid?: ValidationStatusName;
+    by_whom?: string;
+    color?: string;
+    label?: string;
+  };
   _version_: string;
   _xform_id_string: string;
   deviceid?: string;
@@ -328,6 +332,7 @@ interface ExportSettingSettings {
 export interface SurveyRow {
   /** This is a unique identifier that includes both name and path (names of parents). */
   $qpath: string;
+  $xpath: string;
   $autoname: string;
   $kuid: string;
   type: AnyRowTypeName;
@@ -346,6 +351,7 @@ export interface SurveyRow {
   'kobo--locking-profile'?: string;
   /** HXL tags. */
   tags: string[];
+  select_from_list_name?: string;
 }
 
 export interface SurveyChoice {
@@ -466,20 +472,31 @@ interface AdvancedSubmissionSchemaDefinition {
   };
 }
 
+export interface TableSortBySetting {
+  fieldId: string;
+  value: SortValues;
+};
+
 /**
  * None of these are actually stored as `null`s, but we use this interface for
  * a new settings draft too and it's simpler that way.
  */
-export interface AssetTableSettings {
+interface AssetTableSettingsObject {
   'selected-columns'?: string[] | null;
   'frozen-column'?: string | null;
   'show-group-name'?: boolean | null;
   'translation-index'?: number | null;
   'show-hxl-tags'?: boolean | null;
-  'sort-by'?: {
-    fieldId: string;
-    value: 'ASCENDING' | 'DESCENDING';
-  } | null;
+  'sort-by'?: TableSortBySetting | null;
+}
+
+/**
+ * This interface consists of properties from `AssetTableSettingsObject` and one
+ * more property that holds a temporary copy of `AssetTableSettingsObject`
+ */
+export interface AssetTableSettings extends AssetTableSettingsObject {
+  /** This is the same object as AssetTableSettings */
+  'data-table'?: AssetTableSettingsObject
 }
 
 export interface AssetSettings {
@@ -861,6 +878,40 @@ export interface DeploymentResponse {
 interface DataInterface {
   patchProfile: (data: AccountRequest) => JQuery.jqXHR<AccountResponse>;
   [key: string]: Function;
+}
+
+export interface ValidationStatusResponse {
+  timestamp: number;
+  uid: ValidationStatusName;
+  /** username */
+  by_whom: string;
+  /** HEX color */
+  color: string;
+  label: string;
+}
+
+// TODO: this should be moved to some better place, like
+// `…/actions/submissions.es6` after moving it to TypeScript
+export interface GetSubmissionsOptions {
+  uid: string;
+  pageSize?: number;
+  page?: number;
+  sort?: Array<{
+    /** Column name */
+    id: string;
+    /** Is `true` for descending and `false` for ascending */
+    desc: boolean;
+  }>;
+  fields?: string[];
+  filter?: string;
+}
+
+export interface EnketoLinkResponse {
+  url: string;
+  version_id: string;
+  responseJSON?: {
+    detail?: string;
+  }
 }
 
 const $ajax = (o: {}) =>
@@ -1690,7 +1741,7 @@ export const dataInterface: DataInterface = {
 
   bulkPatchSubmissionsValidationStatus(
     uid: string,
-    data: BulkSubmissionsValidationStatusRequest
+    data: BulkSubmissionsRequest
   ): JQuery.jqXHR<any> {
     return $ajax({
       url: `${ROOT_URL}/api/v2/assets/${uid}/data/validation_statuses/`,
@@ -1701,7 +1752,7 @@ export const dataInterface: DataInterface = {
 
   bulkRemoveSubmissionsValidationStatus(
     uid: string,
-    data: BulkSubmissionsValidationStatusRequest
+    data: BulkSubmissionsRequest
   ): JQuery.jqXHR<any> {
     return $ajax({
       url: `${ROOT_URL}/api/v2/assets/${uid}/data/validation_statuses/`,
@@ -1713,8 +1764,8 @@ export const dataInterface: DataInterface = {
   updateSubmissionValidationStatus(
     uid: string,
     sid: string,
-    data: {'validation_status.uid': ValidationStatus}
-  ): JQuery.jqXHR<any> {
+    data: {'validation_status.uid': ValidationStatusName}
+  ): JQuery.jqXHR<ValidationStatusResponse> {
     return $ajax({
       url: `${ROOT_URL}/api/v2/assets/${uid}/data/${sid}/validation_status/`,
       method: 'PATCH',
@@ -1757,13 +1808,13 @@ export const dataInterface: DataInterface = {
     });
   },
 
-  getEnketoEditLink(uid: string, sid: string): JQuery.jqXHR<any> {
+  getEnketoEditLink(uid: string, sid: string): JQuery.jqXHR<EnketoLinkResponse> {
     return $ajax({
       url: `${ROOT_URL}/api/v2/assets/${uid}/data/${sid}/enketo/edit/?return_url=false`,
       method: 'GET',
     });
   },
-  getEnketoViewLink(uid: string, sid: string): JQuery.jqXHR<any> {
+  getEnketoViewLink(uid: string, sid: string): JQuery.jqXHR<EnketoLinkResponse> {
     return $ajax({
       url: `${ROOT_URL}/api/v2/assets/${uid}/data/${sid}/enketo/view/`,
       method: 'GET',
